@@ -1,0 +1,55 @@
+bundle:
+  name: pharmacy_analytics_dbt
+
+include:
+  - resources/*.yml
+
+variables:
+  warehouse_id:
+    description: SQL Warehouse ID used by dbt
+
+  catalog:
+    description: Unity Catalog catalog
+
+  dbt_base_schema:
+    description: Base schema passed to the Databricks-generated dbt profile
+
+  dbt_environment:
+    description: Logical dbt environment passed to the project
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+    workspace:
+      host: https://dbc-af936830-cbe4.cloud.databricks.com
+
+    variables:
+      warehouse_id: 09106b1d8e588c8e
+      catalog: workspace
+      dbt_base_schema: dbt_pawel
+      dbt_environment: dev
+
+  prod:
+    mode: production
+
+    workspace:
+      host: https://dbc-af936830-cbe4.cloud.databricks.com
+      root_path: /Workspace/Production/.bundle/${bundle.name}/${bundle.target}
+
+    git:
+      branch: main
+
+    variables:
+      warehouse_id: 09106b1d8e588c8e
+      catalog: workspace
+      dbt_base_schema: dbt_prod
+      dbt_environment: prod
+
+    run_as:
+      user_name: pawelmazuragh@gmail.com
+
+    permissions:
+      - user_name: pawelmazuragh@gmail.com
+        level: CAN_MANAGE
