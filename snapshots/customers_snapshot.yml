@@ -1,0 +1,12 @@
+version: 2
+
+snapshots:
+  - name: customers_snapshot
+    description: "SCD Type 2 history derived from the Bronze customer source."
+    relation: source('pharmacy_bronze', 'customers')
+
+    config:
+      schema: silver_history
+      unique_key: customer_id
+      strategy: timestamp
+      updated_at: updated_at

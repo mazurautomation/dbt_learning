@@ -1,0 +1,26 @@
+{
+  "name": "Run_Databricks_Dbt_Job",
+  "type": "DatabricksJob",
+  "dependsOn": [
+    {
+      "activity": "Bronze_Ingestion_Complete",
+      "dependencyConditions": [
+        "Succeeded"
+      ]
+    }
+  ],
+  "policy": {
+    "timeout": "0.12:00:00",
+    "retry": 1,
+    "retryIntervalInSeconds": 30,
+    "secureOutput": false,
+    "secureInput": false
+  },
+  "linkedServiceName": {
+    "referenceName": "ls_AzureDatabricks",
+    "type": "LinkedServiceReference"
+  },
+  "typeProperties": {
+    "jobId": "<DATABRICKS_JOB_ID>"
+  }
+}

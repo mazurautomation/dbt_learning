@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: "Cleaned customer source data; one row per customer."
+    columns:
+      - name: customer_id
+        description: "Business key of the customer."
+        data_tests:
+          - not_null
+          - unique
+      - name: email
+        data_tests:
+          - not_null
+      - name: country_code
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['PL', 'DE', 'CZ', 'NL']
+
+  - name: stg_products
+    description: "Cleaned product catalogue; one row per product."
+    columns:
+      - name: product_id
+        data_tests:
+          - not_null
+          - unique
+      - name: unit_price
+        data_tests:
+          - not_null
+
+  - name: stg_orders
+    description: "Cleaned order headers; one row per order."
+    columns:
+      - name: order_id
+        data_tests:
+          - not_null
+          - unique
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['pending', 'paid', 'shipped', 'cancelled']
+
+  - name: stg_order_items
+    description: "Cleaned order line items; one row per order item."
+    columns:
+      - name: order_item_id
+        data_tests:
+          - not_null
+          - unique
+      - name: order_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: product_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_products')
+                field: product_id
+      - name: quantity
+        data_tests:
+          - not_null
+
+  - name: stg_payments
+    description: "Cleaned payments; one row per payment attempt."
+    columns:
+      - name: payment_id
+        data_tests:
+          - not_null
+          - unique
+      - name: order_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_orders')
+                field: order_id
+      - name: payment_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['paid', 'failed', 'pending', 'refunded']

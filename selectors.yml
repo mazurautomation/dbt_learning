@@ -1,0 +1,12 @@
+selectors:
+  - name: silver
+    description: "All nodes tagged as Silver."
+    definition:
+      method: tag
+      value: silver
+
+  - name: gold
+    description: "All nodes tagged as Gold."
+    definition:
+      method: tag
+      value: gold

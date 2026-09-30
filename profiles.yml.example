@@ -1,0 +1,24 @@
+pharmacy_analytics:
+  target: dev
+
+  outputs:
+    dev:
+      type: databricks
+      catalog: YOUR_CATALOG
+      schema: dbt_pawel
+      host: YOUR_DATABRICKS_HOST
+      http_path: YOUR_HTTP_PATH
+      auth_type: oauth
+      threads: 4
+
+    # This target is included to demonstrate how the project names schemas in PROD.
+    # For an actual Databricks Job, connection/authentication is normally configured
+    # by the job and its Run As principal rather than committed to Git.
+    prod:
+      type: databricks
+      catalog: YOUR_CATALOG
+      schema: dbt_prod
+      host: YOUR_DATABRICKS_HOST
+      http_path: YOUR_HTTP_PATH
+      auth_type: oauth
+      threads: 8

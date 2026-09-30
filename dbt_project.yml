@@ -1,0 +1,32 @@
+name: 'pharmacy_analytics'
+version: '2.0.0'
+config-version: 2
+
+profile: 'pharmacy_analytics'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  pharmacy_analytics:
+    staging:
+      +materialized: table
+      +schema: silver
+      +tags: ["silver"]
+
+    intermediate:
+      +materialized: ephemeral
+      +tags: ["silver"]
+
+    marts:
+      +materialized: table
+      +schema: gold
+      +tags: ["gold"]

@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: dim_customers
+    description: "Current customer dimension."
+    columns:
+      - name: customer_id
+        data_tests:
+          - not_null
+          - unique
+
+  - name: dim_products
+    description: "Current product dimension."
+    columns:
+      - name: product_id
+        data_tests:
+          - not_null
+          - unique
+
+  - name: fct_orders
+    description: "One row per order with order and successful-payment amounts."
+    columns:
+      - name: order_id
+        description: "Grain and unique key of this fact table."
+        data_tests:
+          - not_null
+          - unique
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: customer_id
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['pending', 'paid', 'shipped', 'cancelled']
+      - name: order_amount
+        data_tests:
+          - not_null
+      - name: record_updated_at
+        data_tests:
+          - not_null
+
+  - name: fct_daily_sales
+    description: "Daily sales aggregate based on paid or shipped orders."
+    columns:
+      - name: sales_date
+        data_tests:
+          - not_null
+          - unique

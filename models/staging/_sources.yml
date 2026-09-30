@@ -1,0 +1,48 @@
+version: 2
+
+sources:
+  - name: pharmacy_bronze
+    description: "Bronze layer populated by ingestion. dbt treats it as an external source."
+    database: "{{ target.catalog }}"
+    schema: bronze
+
+    tables:
+      - name: customers
+        description: "Raw customer records as received from the source system."
+        columns:
+          - name: customer_id
+            data_tests:
+              - not_null
+
+      - name: products
+        description: "Raw product catalogue."
+        columns:
+          - name: product_id
+            data_tests:
+              - not_null
+
+      - name: orders
+        description: "Raw order headers."
+        config:
+          freshness:
+            warn_after: {count: 24, period: hour}
+            error_after: {count: 72, period: hour}
+          loaded_at_field: _loaded_at
+        columns:
+          - name: order_id
+            data_tests:
+              - not_null
+
+      - name: order_items
+        description: "Raw order line items."
+        columns:
+          - name: order_item_id
+            data_tests:
+              - not_null
+
+      - name: payments
+        description: "Raw payment events."
+        columns:
+          - name: payment_id
+            data_tests:
+              - not_null
