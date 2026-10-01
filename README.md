@@ -2,7 +2,7 @@
 
 Practical analytics engineering project built with dbt Core and Databricks. The repository demonstrates a production-style Medallion Architecture, incremental Delta Lake processing, data quality tests, Databricks Asset Bundles, and GitHub Actions CI/CD.
 
-The project uses synthetic online-pharmacy/e-commerce data only.
+The project uses synthetic online-pharmacy/e-commerce data only, not real data.
 
 ## Architecture
 
