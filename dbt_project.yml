@@ -11,6 +11,9 @@ seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
+vars:
+  incremental_lookback_hours: 24
+
 clean-targets:
   - "target"
   - "dbt_packages"

@@ -18,12 +18,4 @@ select
     cast(_loaded_at as timestamp) as _loaded_at
 from {{ source('pharmacy_bronze', 'payments') }}
 
-{% if is_incremental() %}
-where cast(_loaded_at as timestamp) > (
-    select coalesce(
-        max(_loaded_at),
-        cast('1900-01-01 00:00:00' as timestamp)
-    )
-    from {{ this }}
-)
-{% endif %}
+{{ incremental_watermark_filter('_loaded_at') }}
