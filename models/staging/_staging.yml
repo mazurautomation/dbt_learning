@@ -74,6 +74,9 @@ models:
       - name: quantity
         data_tests:
           - not_null
+          - dbt_utils.expression_is_true:
+              arguments:
+                expression: "> 0"
 
   - name: stg_payments
     description: "Cleaned payments; one row per payment attempt."

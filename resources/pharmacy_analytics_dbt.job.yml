@@ -15,6 +15,7 @@ resources:
             project_directory: ${workspace.file_path}
 
             commands:
+              - "dbt deps"
               - "dbt build --vars '{environment: ${var.dbt_environment}}'"
 
             warehouse_id: ${var.warehouse_id}
