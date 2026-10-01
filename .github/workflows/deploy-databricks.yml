@@ -1,0 +1,49 @@
+name: Deploy Databricks Bundle
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: databricks-prod-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy PROD
+    runs-on: ubuntu-latest
+    environment: prod
+
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+        with:
+          version: 1.18.0
+
+      - name: Show Databricks CLI version
+        run: databricks version
+
+      - name: Validate bundle
+        run: databricks bundle validate -t prod
+
+      - name: Plan deployment
+        run: databricks bundle plan -t prod
+
+      - name: Deploy bundle
+        run: databricks bundle deploy -t prod
+
+      - name: Show deployed resources
+        run: databricks bundle summary -t prod
