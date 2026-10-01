@@ -1,7 +1,7 @@
 resources:
   jobs:
     pharmacy_analytics_dbt_job:
-      name: pharmacy_analytics_dbt
+      name: pharmacy_analytics_dbt_prod
 
       max_concurrent_runs: 1
 
