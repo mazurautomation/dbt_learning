@@ -1,4 +1,4 @@
-name: PR CI
+name: PR Slim CI
 
 on:
   pull_request:
@@ -17,30 +17,176 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate-and-test:
-    name: Validate and test DEV
+  slim-ci:
+    name: Slim dbt CI
     runs-on: ubuntu-latest
     environment: dev
 
     env:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_HTTP_PATH: ${{ vars.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_CATALOG: ${{ vars.DATABRICKS_CATALOG }}
+      DATABRICKS_PROD_JOB_ID: ${{ vars.DATABRICKS_PROD_JOB_ID }}
+      CI_SCHEMA: dbt_ci_pr_${{ github.event.pull_request.number }}
 
     steps:
-      - name: Checkout repository
+      - name: Checkout PR
         uses: actions/checkout@v4
 
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
+        with:
+          version: 1.18.0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dbt
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-databricks==1.12.5
+
+      - name: Install dbt packages
+        run: dbt deps
 
       - name: Validate bundle
         run: databricks bundle validate -t dev
 
-      - name: Plan DEV deployment
+      - name: Plan bundle
         run: databricks bundle plan -t dev
 
-      - name: Deploy DEV bundle
-        run: databricks bundle deploy -t dev
+      - name: Download latest PROD dbt manifest
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Run dbt DEV job
-        run: databricks bundle run -t dev pharmacy_analytics_dbt_job
+          databricks jobs list-runs \
+            --job-id "$DATABRICKS_PROD_JOB_ID" \
+            --completed-only \
+            --limit 25 \
+            --output json > prod-runs.json
+
+          PROD_RUN_ID=$(
+            jq -r '
+              (if type == "array" then . else (.runs // []) end)
+              | map(select(.state.result_state == "SUCCESS"))
+              | .[0].run_id // empty
+            ' prod-runs.json
+          )
+
+          if [ -z "$PROD_RUN_ID" ]; then
+            echo "No successful PROD dbt job run found."
+            exit 1
+          fi
+
+          echo "Using PROD run: $PROD_RUN_ID"
+
+          databricks jobs get-run \
+            "$PROD_RUN_ID" \
+            --output json > prod-run.json
+
+          DBT_TASK_RUN_ID=$(
+            jq -r '
+              (.tasks // [])
+              | map(select(.task_key == "dbt_build"))
+              | .[0].run_id // empty
+            ' prod-run.json
+          )
+
+          if [ -z "$DBT_TASK_RUN_ID" ]; then
+            echo "dbt_build task run not found."
+            exit 1
+          fi
+
+          echo "Using dbt task run: $DBT_TASK_RUN_ID"
+
+          databricks jobs get-run-output \
+            "$DBT_TASK_RUN_ID" \
+            --output json > dbt-output.json
+
+          ARTIFACT_URL=$(
+            jq -r '.dbt_output.artifacts_link // empty' dbt-output.json
+          )
+
+          if [ -z "$ARTIFACT_URL" ]; then
+            echo "dbt artifacts URL not found."
+            exit 1
+          fi
+
+          echo "Downloading archived dbt artifacts..."
+
+          curl -fsSL \
+            "$ARTIFACT_URL" \
+            -o dbt-output.tar.gz
+
+          mkdir -p downloaded-artifacts
+          mkdir -p prod_state
+
+          tar -xzf dbt-output.tar.gz \
+            -C downloaded-artifacts
+
+          MANIFEST=$(
+            find downloaded-artifacts \
+              -type f \
+              -name manifest.json \
+              -print -quit
+          )
+
+          if [ -z "$MANIFEST" ]; then
+            echo "manifest.json not found in dbt artifacts."
+            exit 1
+          fi
+
+          cp "$MANIFEST" prod_state/manifest.json
+
+          echo "PROD manifest downloaded successfully:"
+          ls -lh prod_state/manifest.json
+
+      - name: Create dbt CI profile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.dbt
+
+          DBT_HOST="${DATABRICKS_HOST#https://}"
+
+          cat > ~/.dbt/profiles.yml <<EOF
+          pharmacy_analytics:
+            target: ci
+
+            outputs:
+              ci:
+                type: databricks
+                method: http
+                catalog: ${DATABRICKS_CATALOG}
+                schema: ${CI_SCHEMA}
+                host: ${DBT_HOST}
+                http_path: ${DATABRICKS_HTTP_PATH}
+                token: ${DATABRICKS_TOKEN}
+                threads: 4
+          EOF
+
+      - name: Check dbt connection
+        run: dbt debug --target ci
+
+      - name: Show modified dbt nodes
+        run: |
+          dbt ls \
+            --target ci \
+            --select "state:modified+" \
+            --state prod_state \
+            --vars '{"environment":"dev"}'
+
+      - name: Run Slim CI
+        run: |
+          dbt build \
+            --target ci \
+            --select "state:modified+" \
+            --state prod_state \
+            --defer \
+            --favor-state \
+            --vars '{"environment":"dev"}'
