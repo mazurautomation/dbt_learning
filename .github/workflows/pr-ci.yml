@@ -173,6 +173,21 @@ jobs:
       - name: Check dbt connection
         run: dbt debug --target ci
 
+      - name: Prepare unit test parents
+        run: |
+          dbt run \
+            --target ci \
+            --select stg_orders \
+            --empty \
+            --vars '{"environment":"dev"}'
+
+      - name: Run dbt unit tests
+        run: |
+          dbt test \
+            --target ci \
+            --select "test_type:unit" \
+            --vars '{"environment":"dev"}'
+
       - name: Show modified dbt nodes
         run: |
           dbt ls \

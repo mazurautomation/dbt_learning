@@ -1,0 +1,145 @@
+version: 2
+
+unit_tests:
+
+  - name: test_int_orders_enriched_complete_order
+    description: >
+      Order with items and payment should contain the calculated amounts,
+      and record_updated_at should contain the latest timestamp from its inputs.
+
+    model: int_orders_enriched
+
+    given:
+
+      - input: ref('stg_orders')
+        format: sql
+        rows: |
+          select
+              cast(1001 as bigint) as order_id,
+              cast(1 as bigint) as customer_id,
+              'paid' as order_status,
+              cast('2026-10-01 10:00:00' as timestamp) as ordered_at,
+              cast('2026-10-01 10:05:00' as timestamp) as updated_at
+
+      - input: ref('int_order_items_aggregated')
+        format: sql
+        rows: |
+          select
+              cast(1001 as bigint) as order_id,
+              cast(3 as bigint) as item_quantity,
+              cast(45.50 as decimal(12, 2)) as order_amount,
+              cast('2026-10-01 10:06:00' as timestamp) as items_updated_at
+
+      - input: ref('int_payments_aggregated')
+        format: sql
+        rows: |
+          select
+              cast(1001 as bigint) as order_id,
+              cast(45.50 as decimal(12, 2)) as paid_amount,
+              cast('2026-10-01 10:07:00' as timestamp) as payments_updated_at
+
+    expect:
+      format: dict
+      rows:
+        - order_id: 1001
+          customer_id: 1
+          order_status: paid
+          item_quantity: 3
+          order_amount: 45.50
+          paid_amount: 45.50
+          record_updated_at: '2026-10-01 10:07:00'
+
+  - name: test_int_orders_enriched_without_payment
+    description: >
+      An order without a payment should still exist and paid_amount should
+      default to zero.
+
+    model: int_orders_enriched
+
+    given:
+
+      - input: ref('stg_orders')
+        format: sql
+        rows: |
+          select
+              cast(1002 as bigint) as order_id,
+              cast(2 as bigint) as customer_id,
+              'pending' as order_status,
+              cast('2026-10-01 11:00:00' as timestamp) as ordered_at,
+              cast('2026-10-01 11:05:00' as timestamp) as updated_at
+
+      - input: ref('int_order_items_aggregated')
+        format: sql
+        rows: |
+          select
+              cast(1002 as bigint) as order_id,
+              cast(2 as bigint) as item_quantity,
+              cast(20.00 as decimal(12, 2)) as order_amount,
+              cast('2026-10-01 11:06:00' as timestamp) as items_updated_at
+
+      - input: ref('int_payments_aggregated')
+        format: sql
+        rows: |
+          select
+              cast(null as bigint) as order_id,
+              cast(null as decimal(12, 2)) as paid_amount,
+              cast(null as timestamp) as payments_updated_at
+          where false
+
+    expect:
+      format: dict
+      rows:
+        - order_id: 1002
+          order_status: pending
+          item_quantity: 2
+          order_amount: 20.00
+          paid_amount: 0.00
+          record_updated_at: '2026-10-01 11:06:00'
+
+  - name: test_int_orders_enriched_without_items_or_payment
+    description: >
+      An order without items or payments should remain in the model
+      with zero item quantity and zero monetary amounts.
+
+    model: int_orders_enriched
+
+    given:
+
+      - input: ref('stg_orders')
+        format: sql
+        rows: |
+          select
+              cast(1003 as bigint) as order_id,
+              cast(3 as bigint) as customer_id,
+              'cancelled' as order_status,
+              cast('2026-10-01 12:00:00' as timestamp) as ordered_at,
+              cast('2026-10-01 12:05:00' as timestamp) as updated_at
+
+      - input: ref('int_order_items_aggregated')
+        format: sql
+        rows: |
+          select
+              cast(null as bigint) as order_id,
+              cast(null as bigint) as item_quantity,
+              cast(null as decimal(12, 2)) as order_amount,
+              cast(null as timestamp) as items_updated_at
+          where false
+
+      - input: ref('int_payments_aggregated')
+        format: sql
+        rows: |
+          select
+              cast(null as bigint) as order_id,
+              cast(null as decimal(12, 2)) as paid_amount,
+              cast(null as timestamp) as payments_updated_at
+          where false
+
+    expect:
+      format: dict
+      rows:
+        - order_id: 1003
+          order_status: cancelled
+          item_quantity: 0
+          order_amount: 0.00
+          paid_amount: 0.00
+          record_updated_at: '2026-10-01 12:05:00'
