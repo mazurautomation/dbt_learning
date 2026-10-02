@@ -21,28 +21,66 @@ sources:
             data_tests:
               - not_null
 
-      - name: orders
-        description: "Raw order headers."
+      - name: orders_cdc
+        description: "Append-only CDC events for orders."
         config:
           freshness:
             warn_after: {count: 24, period: hour}
             error_after: {count: 72, period: hour}
           loaded_at_field: _loaded_at
+
         columns:
           - name: order_id
             data_tests:
               - not_null
 
-      - name: order_items
-        description: "Raw order line items."
+          - name: _cdc_operation
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['I', 'U', 'D']
+
+          - name: _cdc_sequence
+            data_tests:
+              - not_null
+
+
+      - name: order_items_cdc
+        description: "Append-only CDC events for order items."
+
         columns:
           - name: order_item_id
             data_tests:
               - not_null
 
-      - name: payments
-        description: "Raw payment events."
+          - name: _cdc_operation
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['I', 'U', 'D']
+
+          - name: _cdc_sequence
+            data_tests:
+              - not_null
+
+
+      - name: payments_cdc
+        description: "Append-only CDC events for payments."
+
         columns:
           - name: payment_id
+            data_tests:
+              - not_null
+
+          - name: _cdc_operation
+            data_tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['I', 'U', 'D']
+
+          - name: _cdc_sequence
             data_tests:
               - not_null
