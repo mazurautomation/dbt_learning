@@ -2,10 +2,14 @@ version: 2
 
 unit_tests:
 
+  # --------------------------------------------------------------------------
+  # int_orders_enriched
+  # --------------------------------------------------------------------------
+
   - name: test_int_orders_enriched_complete_order
     description: >
-      Order with items and payment should contain the calculated amounts,
-      and record_updated_at should contain the latest timestamp from its inputs.
+      Complete active order should contain item and payment amounts and use
+      the latest timestamp from all inputs as record_updated_at.
 
     model: int_orders_enriched
 
@@ -19,7 +23,9 @@ unit_tests:
               cast(1 as bigint) as customer_id,
               'paid' as order_status,
               cast('2026-10-01 10:00:00' as timestamp) as ordered_at,
-              cast('2026-10-01 10:05:00' as timestamp) as updated_at
+              cast('2026-10-01 10:05:00' as timestamp) as updated_at,
+              cast('2026-10-01 10:04:00' as timestamp) as _loaded_at,
+              false as is_deleted
 
       - input: ref('int_order_items_aggregated')
         format: sql
@@ -47,12 +53,14 @@ unit_tests:
           item_quantity: 3
           order_amount: 45.50
           paid_amount: 45.50
+          is_deleted: false
           record_updated_at: '2026-10-01 10:07:00'
+
 
   - name: test_int_orders_enriched_without_payment
     description: >
-      An order without a payment should still exist and paid_amount should
-      default to zero.
+      Active order without a payment should remain in the model and paid_amount
+      should default to zero.
 
     model: int_orders_enriched
 
@@ -66,7 +74,9 @@ unit_tests:
               cast(2 as bigint) as customer_id,
               'pending' as order_status,
               cast('2026-10-01 11:00:00' as timestamp) as ordered_at,
-              cast('2026-10-01 11:05:00' as timestamp) as updated_at
+              cast('2026-10-01 11:05:00' as timestamp) as updated_at,
+              cast('2026-10-01 11:04:00' as timestamp) as _loaded_at,
+              false as is_deleted
 
       - input: ref('int_order_items_aggregated')
         format: sql
@@ -94,12 +104,14 @@ unit_tests:
           item_quantity: 2
           order_amount: 20.00
           paid_amount: 0.00
+          is_deleted: false
           record_updated_at: '2026-10-01 11:06:00'
+
 
   - name: test_int_orders_enriched_without_items_or_payment
     description: >
-      An order without items or payments should remain in the model
-      with zero item quantity and zero monetary amounts.
+      Active order without items or payments should remain in the model with
+      zero amounts.
 
     model: int_orders_enriched
 
@@ -113,7 +125,9 @@ unit_tests:
               cast(3 as bigint) as customer_id,
               'cancelled' as order_status,
               cast('2026-10-01 12:00:00' as timestamp) as ordered_at,
-              cast('2026-10-01 12:05:00' as timestamp) as updated_at
+              cast('2026-10-01 12:05:00' as timestamp) as updated_at,
+              cast('2026-10-01 12:10:00' as timestamp) as _loaded_at,
+              false as is_deleted
 
       - input: ref('int_order_items_aggregated')
         format: sql
@@ -142,4 +156,141 @@ unit_tests:
           item_quantity: 0
           order_amount: 0.00
           paid_amount: 0.00
-          record_updated_at: '2026-10-01 12:05:00'
+          is_deleted: false
+          record_updated_at: '2026-10-01 12:10:00'
+
+
+  - name: test_int_orders_enriched_propagates_delete_tombstone
+    description: >
+      Deleted Silver order must remain visible to downstream processing as a
+      tombstone so Gold can physically delete it.
+
+    model: int_orders_enriched
+
+    given:
+
+      - input: ref('stg_orders')
+        format: sql
+        rows: |
+          select
+              cast(1004 as bigint) as order_id,
+              cast(4 as bigint) as customer_id,
+              'cancelled' as order_status,
+              cast('2026-10-01 12:00:00' as timestamp) as ordered_at,
+              cast('2026-10-01 12:05:00' as timestamp) as updated_at,
+              cast('2026-10-01 13:30:00' as timestamp) as _loaded_at,
+              true as is_deleted
+
+      - input: ref('int_order_items_aggregated')
+        format: sql
+        rows: |
+          select
+              cast(null as bigint) as order_id,
+              cast(null as bigint) as item_quantity,
+              cast(null as decimal(12, 2)) as order_amount,
+              cast(null as timestamp) as items_updated_at
+          where false
+
+      - input: ref('int_payments_aggregated')
+        format: sql
+        rows: |
+          select
+              cast(null as bigint) as order_id,
+              cast(null as decimal(12, 2)) as paid_amount,
+              cast(null as timestamp) as payments_updated_at
+          where false
+
+    expect:
+      format: dict
+      rows:
+        - order_id: 1004
+          item_quantity: 0
+          order_amount: 0.00
+          paid_amount: 0.00
+          is_deleted: true
+          record_updated_at: '2026-10-01 13:30:00'
+
+
+  # --------------------------------------------------------------------------
+  # int_order_items_aggregated
+  # --------------------------------------------------------------------------
+
+  - name: test_order_items_aggregation_ignores_deleted_items
+    description: >
+      Deleted order items must not contribute to business amounts but their
+      ingestion timestamp must still advance the downstream watermark.
+
+    model: int_order_items_aggregated
+
+    given:
+
+      - input: ref('stg_order_items')
+        format: sql
+        rows: |
+          select
+              cast(4001 as bigint) as order_item_id,
+              cast(1001 as bigint) as order_id,
+              cast(2 as int) as quantity,
+              cast(10.00 as decimal(12, 2)) as unit_price,
+              false as is_deleted,
+              cast('2026-10-01 10:00:00' as timestamp) as _loaded_at
+
+          union all
+
+          select
+              cast(4002 as bigint),
+              cast(1001 as bigint),
+              cast(1 as int),
+              cast(5.00 as decimal(12, 2)),
+              true,
+              cast('2026-10-01 10:10:00' as timestamp)
+
+    expect:
+      format: dict
+      rows:
+        - order_id: 1001
+          item_quantity: 2
+          order_amount: 20.00
+          items_updated_at: '2026-10-01 10:10:00'
+
+
+  # --------------------------------------------------------------------------
+  # int_payments_aggregated
+  # --------------------------------------------------------------------------
+
+  - name: test_payment_aggregation_ignores_deleted_payments
+    description: >
+      Deleted payments must not contribute to paid_amount but their ingestion
+      timestamp must still advance the downstream watermark.
+
+    model: int_payments_aggregated
+
+    given:
+
+      - input: ref('stg_payments')
+        format: sql
+        rows: |
+          select
+              cast(5001 as bigint) as payment_id,
+              cast(1001 as bigint) as order_id,
+              'paid' as payment_status,
+              cast(20.00 as decimal(12, 2)) as amount,
+              false as is_deleted,
+              cast('2026-10-01 10:00:00' as timestamp) as _loaded_at
+
+          union all
+
+          select
+              cast(5002 as bigint),
+              cast(1001 as bigint),
+              'paid',
+              cast(5.00 as decimal(12, 2)),
+              true,
+              cast('2026-10-01 10:15:00' as timestamp)
+
+    expect:
+      format: dict
+      rows:
+        - order_id: 1001
+          paid_amount: 20.00
+          payments_updated_at: '2026-10-01 10:15:00'

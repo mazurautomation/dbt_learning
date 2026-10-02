@@ -177,7 +177,7 @@ jobs:
         run: |
           dbt run \
             --target ci \
-            --select stg_orders \
+            --select stg_orders stg_order_items stg_payments \
             --empty \
             --vars '{"environment":"dev"}'
 
