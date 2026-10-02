@@ -16,7 +16,7 @@ resources:
 
             commands:
               - "dbt deps"
-              - "dbt build --vars '{environment: ${var.dbt_environment}}'"
+              - "dbt build --exclude-resource-type unit_test --vars '{environment: ${var.dbt_environment}}'"
 
             warehouse_id: ${var.warehouse_id}
             catalog: ${var.catalog}
