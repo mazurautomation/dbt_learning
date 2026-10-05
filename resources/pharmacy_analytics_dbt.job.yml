@@ -1,9 +1,13 @@
 resources:
   jobs:
     pharmacy_analytics_dbt_job:
-      name: pharmacy_analytics_dbt_prod
+      name: pharmacy_analytics_dbt
 
       max_concurrent_runs: 1
+
+      parameters:
+        - name: cdc_batch_id
+          default: "1"
 
       tasks:
         - task_key: dbt_build
@@ -16,7 +20,11 @@ resources:
 
             commands:
               - "dbt deps"
-              - "dbt build --exclude-resource-type unit_test --vars '{environment: ${var.dbt_environment}}'"
+
+              - >-
+                dbt build
+                --exclude-resource-type unit_test
+                --vars '{"environment":"${var.dbt_environment}","cdc_batch_id":{{job.parameters.cdc_batch_id}}}'
 
             warehouse_id: ${var.warehouse_id}
             catalog: ${var.catalog}
@@ -24,6 +32,28 @@ resources:
 
           max_retries: 1
           min_retry_interval_millis: 30000
+
+        - task_key: mark_cdc_batch_processed
+
+          depends_on:
+            - task_key: dbt_build
+
+          environment_key: dbt_environment
+
+          dbt_task:
+            source: WORKSPACE
+            project_directory: ${workspace.file_path}
+
+            commands:
+              - "dbt deps"
+
+              - >-
+                dbt run-operation mark_cdc_batch_processed
+                --args '{batch_id: {{job.parameters.cdc_batch_id}}, run_id: {{job.run_id}}}'
+
+            warehouse_id: ${var.warehouse_id}
+            catalog: ${var.catalog}
+            schema: ${var.dbt_base_schema}
 
       environments:
         - environment_key: dbt_environment

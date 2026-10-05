@@ -13,7 +13,9 @@ select
         as decimal(12, 2)
     ) as paid_amount,
 
-    max(_loaded_at) as payments_updated_at
+    max(_loaded_at) as payments_updated_at,
+
+    max(_ingest_batch_id) as payments_batch_id
 
 from {{ ref('stg_payments') }}
 

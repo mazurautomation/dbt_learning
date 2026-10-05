@@ -19,7 +19,9 @@ select
         as decimal(12, 2)
     ) as order_amount,
 
-    max(_loaded_at) as items_updated_at
+    max(_loaded_at) as items_updated_at,
+
+    max(_ingest_batch_id) as items_batch_id
 
 from {{ ref('stg_order_items') }}
 

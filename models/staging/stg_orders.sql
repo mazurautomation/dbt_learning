@@ -17,11 +17,36 @@ with source_changes as (
         cast(updated_at as timestamp) as updated_at,
         cast(_loaded_at as timestamp) as _loaded_at,
         upper(trim(_cdc_operation)) as _cdc_operation,
-        cast(_cdc_sequence as bigint) as _cdc_sequence
+        cast(_cdc_sequence as bigint) as _cdc_sequence,
+        cast(_ingest_batch_id as bigint) as _ingest_batch_id
 
     from {{ source('pharmacy_bronze', 'orders_cdc') }}
 
-    {{ incremental_watermark_filter('_loaded_at') }}
+    {{ cdc_batch_filter('_ingest_batch_id') }}
+
+),
+
+sequence_deduplicated as (
+
+    select *
+    from (
+
+        select
+            *,
+            row_number() over (
+                partition by
+                    order_id,
+                    _cdc_sequence
+                order by
+                    _ingest_batch_id desc,
+                    _loaded_at desc
+            ) as _sequence_duplicate_rank
+
+        from source_changes
+
+    )
+
+    where _sequence_duplicate_rank = 1
 
 ),
 
@@ -33,38 +58,34 @@ ranked_changes as (
             partition by order_id
             order by
                 _cdc_sequence desc,
+                _ingest_batch_id desc,
                 _loaded_at desc
         ) as _cdc_rank
 
-    from source_changes
-
-),
-
-latest_changes as (
-
-    select
-        order_id,
-        customer_id,
-        order_status,
-        ordered_at,
-        updated_at,
-        _loaded_at,
-        _cdc_operation,
-        _cdc_sequence,
-        case
-            when _cdc_operation = 'D' then true
-            else false
-        end as is_deleted
-
-    from ranked_changes
-
-    where _cdc_rank = 1
+    from sequence_deduplicated
 
 )
 
-select *
-from latest_changes
+select
+    order_id,
+    customer_id,
+    order_status,
+    ordered_at,
+    updated_at,
+    _loaded_at,
+    _cdc_operation,
+    _cdc_sequence,
+    _ingest_batch_id,
+
+    case
+        when _cdc_operation = 'D' then true
+        else false
+    end as is_deleted
+
+from ranked_changes
+
+where _cdc_rank = 1
 
 {% if not is_incremental() %}
-where _cdc_operation <> 'D'
+  and _cdc_operation <> 'D'
 {% endif %}
