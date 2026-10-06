@@ -10,6 +10,9 @@ test-paths: ["tests"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
+on-run-end:
+  - "{{ log_dbt_run_results(results) }}"
+  - "{{ log_cdc_run_metrics(results) }}"
 
 clean-targets:
   - "target"
