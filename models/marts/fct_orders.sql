@@ -15,6 +15,7 @@ select
     item_quantity,
     order_amount,
     paid_amount,
+    'PLN' as currency_code,
     is_deleted,
     record_updated_at,
     _ingest_batch_id
