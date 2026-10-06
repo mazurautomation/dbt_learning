@@ -1,0 +1,24 @@
+version: 2
+
+exposures:
+  - name: pharmacy_sales_dashboard
+    label: "Pharmacy Sales Dashboard"
+    type: dashboard
+    maturity: medium
+
+    description: >
+      Power BI sales reporting dashboard consuming curated Gold models.
+      It provides order-level analysis and daily sales trends.
+
+    depends_on:
+      - ref('fct_orders')
+      - ref('fct_daily_sales')
+
+    owner:
+      name: Data Engineering
+
+    config:
+      meta:
+        bi_tool: Power BI
+        business_domain: sales
+        audience: analytics

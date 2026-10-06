@@ -18,21 +18,33 @@ models:
           - unique
 
   - name: fct_orders
-    description: "Gold fact table containing one row per order."
+    description: >
+      Gold fact table at order grain. Contains one row per active order and
+      combines order header, item totals and successful payment amounts.
+      Deleted CDC records are physically removed from this Gold model.
 
     config:
       contract:
         enforced: true
 
+      meta:
+        layer: gold
+        domain: sales
+        grain: one_row_per_order
+        criticality: high
+        consumer_ready: true
+
     columns:
       - name: order_id
         data_type: bigint
+        description: "Unique business identifier of the order."
         data_tests:
           - not_null
           - unique
 
       - name: customer_id
         data_type: bigint
+        description: "Customer associated with the order."
         data_tests:
           - not_null
           - relationships:
@@ -42,6 +54,7 @@ models:
 
       - name: order_status
         data_type: string
+        description: "Current business status of the order."
         data_tests:
           - accepted_values:
               arguments:
@@ -49,17 +62,21 @@ models:
 
       - name: ordered_at
         data_type: timestamp
+        description: "Timestamp when the order was originally placed."
 
       - name: item_quantity
         data_type: bigint
+        description: "Total quantity of active order items."
 
       - name: order_amount
         data_type: decimal(12,2)
+        description: "Total value of active order items."
         data_tests:
           - not_null
 
       - name: paid_amount
         data_type: decimal(12,2)
+        description: "Total amount of successful active payments."
 
       - name: currency_code
         data_type: string
@@ -72,17 +89,35 @@ models:
 
       - name: is_deleted
         data_type: boolean
+        description: >
+          CDC deletion flag propagated internally. Gold hard-delete logic
+          ensures deleted records do not remain in the published table.
 
       - name: record_updated_at
         data_type: timestamp
+        description: >
+          Latest relevant update timestamp across order, items and payments.
         data_tests:
           - not_null
 
       - name: _ingest_batch_id
         data_type: bigint
+        description: >
+          Highest ingestion batch identifier contributing to the current row.
 
   - name: fct_daily_sales
-    description: "Daily sales aggregate based on paid or shipped orders."
+    description: >
+      Gold daily sales aggregate derived from fct_orders and intended for
+      reporting and trend analysis.
+
+    config:
+      meta:
+        layer: gold
+        domain: sales
+        grain: one_row_per_day
+        criticality: medium
+        consumer_ready: true
+
     columns:
       - name: sales_date
         data_tests:
