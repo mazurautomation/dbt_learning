@@ -10,7 +10,30 @@ resources:
           default: "1"
 
       tasks:
+
+        - task_key: source_freshness
+
+          environment_key: dbt_environment
+
+          dbt_task:
+            source: WORKSPACE
+            project_directory: ${workspace.file_path}
+
+            commands:
+              - "dbt deps"
+
+              - >-
+                dbt source freshness
+                --select source:pharmacy_bronze.orders_cdc
+
+            warehouse_id: ${var.warehouse_id}
+            catalog: ${var.catalog}
+            schema: ${var.dbt_base_schema}
+
         - task_key: dbt_build
+
+          depends_on:
+            - task_key: source_freshness
 
           environment_key: dbt_environment
 
