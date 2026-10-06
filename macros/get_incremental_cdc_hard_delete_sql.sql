@@ -46,14 +46,16 @@
         on {{ predicates | join(' and ') }}
 
         when matched
-             and DBT_INTERNAL_SOURCE.is_deleted = true
+            and DBT_INTERNAL_SOURCE.is_deleted = true
+            and DBT_INTERNAL_SOURCE._ingest_batch_id
+                >= DBT_INTERNAL_DEST._ingest_batch_id
 
         then delete
 
         when matched
-             and DBT_INTERNAL_SOURCE.is_deleted = false
-             and DBT_INTERNAL_SOURCE.record_updated_at
-                 >= DBT_INTERNAL_DEST.record_updated_at
+            and DBT_INTERNAL_SOURCE.is_deleted = false
+            and DBT_INTERNAL_SOURCE._ingest_batch_id
+                >= DBT_INTERNAL_DEST._ingest_batch_id
 
         then update set *
 

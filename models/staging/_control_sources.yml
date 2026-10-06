@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: pipeline_control
+    database: "{{ target.catalog }}"
+    schema: ops
+
+    tables:
+      - name: cdc_batch_control
+        description: >
+          Stores the last successfully processed CDC ingestion batch.
+
+        columns:
+          - name: pipeline_name
+            data_tests:
+              - not_null
+              - unique
+
+          - name: last_successful_batch_id
+            data_tests:
+              - not_null

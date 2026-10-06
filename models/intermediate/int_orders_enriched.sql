@@ -44,7 +44,13 @@ select
         o._loaded_at,
         coalesce(i.items_updated_at, o._loaded_at),
         coalesce(p.payments_updated_at, o._loaded_at)
-    ) as record_updated_at
+    ) as record_updated_at,
+
+    greatest(
+    o._ingest_batch_id,
+    coalesce(i.items_batch_id, 0),
+    coalesce(p.payments_batch_id, 0)
+    ) as _ingest_batch_id
 
 from orders o
 

@@ -16,29 +16,17 @@ select
     order_amount,
     paid_amount,
     is_deleted,
-    record_updated_at
+    record_updated_at,
+    _ingest_batch_id
 
 from {{ ref('int_orders_enriched') }}
 
 {% if is_incremental() %}
 
-where record_updated_at >= (
-
-    select coalesce(
-        timestampadd(
-            HOUR,
-            -{{ var('incremental_lookback_hours', 24) }},
-            max(record_updated_at)
-        ),
-        cast('1900-01-01 00:00:00' as timestamp)
-    )
-
-    from {{ this }}
-
-)
+    {{ cdc_batch_filter('_ingest_batch_id') }}
 
 {% else %}
 
-where not is_deleted
+    where not is_deleted
 
 {% endif %}

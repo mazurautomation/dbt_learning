@@ -25,6 +25,7 @@ unit_tests:
               cast('2026-10-01 10:00:00' as timestamp) as ordered_at,
               cast('2026-10-01 10:05:00' as timestamp) as updated_at,
               cast('2026-10-01 10:04:00' as timestamp) as _loaded_at,
+              cast(1 as bigint) as _ingest_batch_id,
               false as is_deleted
 
       - input: ref('int_order_items_aggregated')
@@ -34,7 +35,8 @@ unit_tests:
               cast(1001 as bigint) as order_id,
               cast(3 as bigint) as item_quantity,
               cast(45.50 as decimal(12, 2)) as order_amount,
-              cast('2026-10-01 10:06:00' as timestamp) as items_updated_at
+              cast('2026-10-01 10:06:00' as timestamp) as items_updated_at,
+              cast(2 as bigint) as items_batch_id
 
       - input: ref('int_payments_aggregated')
         format: sql
@@ -42,7 +44,8 @@ unit_tests:
           select
               cast(1001 as bigint) as order_id,
               cast(45.50 as decimal(12, 2)) as paid_amount,
-              cast('2026-10-01 10:07:00' as timestamp) as payments_updated_at
+              cast('2026-10-01 10:07:00' as timestamp) as payments_updated_at,
+              cast(3 as bigint) as payments_batch_id
 
     expect:
       format: dict
@@ -55,6 +58,7 @@ unit_tests:
           paid_amount: 45.50
           is_deleted: false
           record_updated_at: '2026-10-01 10:07:00'
+          _ingest_batch_id: 3
 
 
   - name: test_int_orders_enriched_without_payment
@@ -76,6 +80,7 @@ unit_tests:
               cast('2026-10-01 11:00:00' as timestamp) as ordered_at,
               cast('2026-10-01 11:05:00' as timestamp) as updated_at,
               cast('2026-10-01 11:04:00' as timestamp) as _loaded_at,
+              cast(1 as bigint) as _ingest_batch_id,
               false as is_deleted
 
       - input: ref('int_order_items_aggregated')
@@ -85,7 +90,8 @@ unit_tests:
               cast(1002 as bigint) as order_id,
               cast(2 as bigint) as item_quantity,
               cast(20.00 as decimal(12, 2)) as order_amount,
-              cast('2026-10-01 11:06:00' as timestamp) as items_updated_at
+              cast('2026-10-01 11:06:00' as timestamp) as items_updated_at,
+              cast(2 as bigint) as items_batch_id
 
       - input: ref('int_payments_aggregated')
         format: sql
@@ -93,7 +99,8 @@ unit_tests:
           select
               cast(null as bigint) as order_id,
               cast(null as decimal(12, 2)) as paid_amount,
-              cast(null as timestamp) as payments_updated_at
+              cast(null as timestamp) as payments_updated_at,
+              cast(null as bigint) as payments_batch_id
           where false
 
     expect:
@@ -106,6 +113,7 @@ unit_tests:
           paid_amount: 0.00
           is_deleted: false
           record_updated_at: '2026-10-01 11:06:00'
+          _ingest_batch_id: 2
 
 
   - name: test_int_orders_enriched_without_items_or_payment
@@ -127,6 +135,7 @@ unit_tests:
               cast('2026-10-01 12:00:00' as timestamp) as ordered_at,
               cast('2026-10-01 12:05:00' as timestamp) as updated_at,
               cast('2026-10-01 12:10:00' as timestamp) as _loaded_at,
+              cast(3 as bigint) as _ingest_batch_id,
               false as is_deleted
 
       - input: ref('int_order_items_aggregated')
@@ -136,7 +145,8 @@ unit_tests:
               cast(null as bigint) as order_id,
               cast(null as bigint) as item_quantity,
               cast(null as decimal(12, 2)) as order_amount,
-              cast(null as timestamp) as items_updated_at
+              cast(null as timestamp) as items_updated_at,
+              cast(null as bigint) as items_batch_id
           where false
 
       - input: ref('int_payments_aggregated')
@@ -145,7 +155,8 @@ unit_tests:
           select
               cast(null as bigint) as order_id,
               cast(null as decimal(12, 2)) as paid_amount,
-              cast(null as timestamp) as payments_updated_at
+              cast(null as timestamp) as payments_updated_at,
+              cast(null as bigint) as payments_batch_id
           where false
 
     expect:
@@ -158,6 +169,7 @@ unit_tests:
           paid_amount: 0.00
           is_deleted: false
           record_updated_at: '2026-10-01 12:10:00'
+          _ingest_batch_id: 3
 
 
   - name: test_int_orders_enriched_propagates_delete_tombstone
@@ -179,6 +191,7 @@ unit_tests:
               cast('2026-10-01 12:00:00' as timestamp) as ordered_at,
               cast('2026-10-01 12:05:00' as timestamp) as updated_at,
               cast('2026-10-01 13:30:00' as timestamp) as _loaded_at,
+              cast(4 as bigint) as _ingest_batch_id,
               true as is_deleted
 
       - input: ref('int_order_items_aggregated')
@@ -188,7 +201,8 @@ unit_tests:
               cast(null as bigint) as order_id,
               cast(null as bigint) as item_quantity,
               cast(null as decimal(12, 2)) as order_amount,
-              cast(null as timestamp) as items_updated_at
+              cast(null as timestamp) as items_updated_at,
+              cast(null as bigint) as items_batch_id
           where false
 
       - input: ref('int_payments_aggregated')
@@ -197,7 +211,8 @@ unit_tests:
           select
               cast(null as bigint) as order_id,
               cast(null as decimal(12, 2)) as paid_amount,
-              cast(null as timestamp) as payments_updated_at
+              cast(null as timestamp) as payments_updated_at,
+              cast(null as bigint) as payments_batch_id
           where false
 
     expect:
@@ -209,6 +224,7 @@ unit_tests:
           paid_amount: 0.00
           is_deleted: true
           record_updated_at: '2026-10-01 13:30:00'
+          _ingest_batch_id: 4
 
 
   # --------------------------------------------------------------------------
@@ -218,7 +234,7 @@ unit_tests:
   - name: test_order_items_aggregation_ignores_deleted_items
     description: >
       Deleted order items must not contribute to business amounts but their
-      ingestion timestamp must still advance the downstream watermark.
+      ingestion metadata must still advance downstream processing state.
 
     model: int_order_items_aggregated
 
@@ -233,7 +249,8 @@ unit_tests:
               cast(2 as int) as quantity,
               cast(10.00 as decimal(12, 2)) as unit_price,
               false as is_deleted,
-              cast('2026-10-01 10:00:00' as timestamp) as _loaded_at
+              cast('2026-10-01 10:00:00' as timestamp) as _loaded_at,
+              cast(1 as bigint) as _ingest_batch_id
 
           union all
 
@@ -243,7 +260,8 @@ unit_tests:
               cast(1 as int),
               cast(5.00 as decimal(12, 2)),
               true,
-              cast('2026-10-01 10:10:00' as timestamp)
+              cast('2026-10-01 10:10:00' as timestamp),
+              cast(2 as bigint)
 
     expect:
       format: dict
@@ -252,6 +270,7 @@ unit_tests:
           item_quantity: 2
           order_amount: 20.00
           items_updated_at: '2026-10-01 10:10:00'
+          items_batch_id: 2
 
 
   # --------------------------------------------------------------------------
@@ -261,7 +280,7 @@ unit_tests:
   - name: test_payment_aggregation_ignores_deleted_payments
     description: >
       Deleted payments must not contribute to paid_amount but their ingestion
-      timestamp must still advance the downstream watermark.
+      metadata must still advance downstream processing state.
 
     model: int_payments_aggregated
 
@@ -276,7 +295,8 @@ unit_tests:
               'paid' as payment_status,
               cast(20.00 as decimal(12, 2)) as amount,
               false as is_deleted,
-              cast('2026-10-01 10:00:00' as timestamp) as _loaded_at
+              cast('2026-10-01 10:00:00' as timestamp) as _loaded_at,
+              cast(1 as bigint) as _ingest_batch_id
 
           union all
 
@@ -286,7 +306,8 @@ unit_tests:
               'paid',
               cast(5.00 as decimal(12, 2)),
               true,
-              cast('2026-10-01 10:15:00' as timestamp)
+              cast('2026-10-01 10:15:00' as timestamp),
+              cast(2 as bigint)
 
     expect:
       format: dict
@@ -294,3 +315,4 @@ unit_tests:
         - order_id: 1001
           paid_amount: 20.00
           payments_updated_at: '2026-10-01 10:15:00'
+          payments_batch_id: 2

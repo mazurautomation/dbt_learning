@@ -57,7 +57,9 @@
             DBT_INTERNAL_DEST._cdc_sequence =
                 DBT_INTERNAL_SOURCE._cdc_sequence,
             DBT_INTERNAL_DEST._loaded_at =
-                DBT_INTERNAL_SOURCE._loaded_at
+                DBT_INTERNAL_SOURCE._loaded_at,
+            DBT_INTERNAL_DEST._ingest_batch_id =
+                DBT_INTERNAL_SOURCE._ingest_batch_id
 
         when matched
              and DBT_INTERNAL_SOURCE._cdc_operation in ('I', 'U')
@@ -67,8 +69,6 @@
         then update set *
 
         when not matched
-             and DBT_INTERNAL_SOURCE._cdc_operation in ('I', 'U')
-
         then insert *
 
     {% endset %}
