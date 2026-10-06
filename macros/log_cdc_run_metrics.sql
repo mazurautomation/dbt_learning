@@ -1,6 +1,6 @@
 {% macro log_cdc_run_metrics(results) %}
 
-    {% if execute %}
+    {% if execute and var('enable_observability', true) %}
 
         {% set environment = var('environment', 'dev') %}
         {% set orchestrator_run_id = var('orchestrator_run_id', 'local') %}
