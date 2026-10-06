@@ -1,4 +1,4 @@
-name: PR Slim CI
+name: PR dbt CI
 
 on:
   pull_request:
@@ -17,10 +17,195 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+
+  # ============================================================
+  # 1. Static validation
+  # ============================================================
+
+  static-validation:
+    name: Static dbt validation
+    runs-on: ubuntu-latest
+    environment: dev
+
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_HTTP_PATH: ${{ vars.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_CATALOG: ${{ vars.DATABRICKS_CATALOG }}
+      CI_SCHEMA: dbt_ci_pr_${{ github.event.pull_request.number }}
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dbt
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-databricks==1.12.5
+
+      - name: Install dbt packages
+        run: dbt deps
+
+      - name: Create dbt CI profile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.dbt
+
+          DBT_HOST="${DATABRICKS_HOST#https://}"
+
+          cat > ~/.dbt/profiles.yml <<EOF
+          pharmacy_analytics:
+            target: ci
+
+            outputs:
+              ci:
+                type: databricks
+                method: http
+                catalog: ${DATABRICKS_CATALOG}
+                schema: ${CI_SCHEMA}
+                host: ${DBT_HOST}
+                http_path: ${DATABRICKS_HTTP_PATH}
+                token: ${DATABRICKS_TOKEN}
+                threads: 4
+          EOF
+
+      - name: Parse dbt project
+        run: |
+          dbt parse \
+            --target ci \
+            --no-partial-parse \
+            --vars '{"environment":"dev","enable_observability":false}'
+
+
+  # ============================================================
+  # 2. Unit tests
+  # ============================================================
+
+  unit-tests:
+    name: dbt unit tests
+    runs-on: ubuntu-latest
+    environment: dev
+
+    needs:
+      - static-validation
+
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_HTTP_PATH: ${{ vars.DATABRICKS_HTTP_PATH }}
+      DATABRICKS_CATALOG: ${{ vars.DATABRICKS_CATALOG }}
+      CI_SCHEMA: dbt_ci_pr_${{ github.event.pull_request.number }}
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dbt
+        run: |
+          python -m pip install --upgrade pip
+          pip install dbt-databricks==1.12.5
+
+      - name: Install dbt packages
+        run: dbt deps
+
+      - name: Create dbt CI profile
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p ~/.dbt
+
+          DBT_HOST="${DATABRICKS_HOST#https://}"
+
+          cat > ~/.dbt/profiles.yml <<EOF
+          pharmacy_analytics:
+            target: ci
+
+            outputs:
+              ci:
+                type: databricks
+                method: http
+                catalog: ${DATABRICKS_CATALOG}
+                schema: ${CI_SCHEMA}
+                host: ${DBT_HOST}
+                http_path: ${DATABRICKS_HTTP_PATH}
+                token: ${DATABRICKS_TOKEN}
+                threads: 4
+          EOF
+
+      - name: Check dbt connection
+        run: dbt debug --target ci
+
+      - name: Prepare unit test parents
+        run: |
+          dbt run \
+            --target ci \
+            --select stg_orders stg_order_items stg_payments \
+            --empty \
+            --vars '{"environment":"dev","enable_observability":false}'
+
+      - name: Run dbt unit tests
+        run: |
+          dbt test \
+            --target ci \
+            --select "test_type:unit" \
+            --vars '{"environment":"dev","enable_observability":false}'
+
+
+  # ============================================================
+  # 3. Databricks Asset Bundle validation
+  # ============================================================
+
+  bundle-validation:
+    name: Databricks Bundle validation
+    runs-on: ubuntu-latest
+    environment: dev
+
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+        with:
+          version: 1.19.0
+
+      - name: Validate bundle
+        run: databricks bundle validate -t dev
+
+      - name: Plan bundle
+        run: databricks bundle plan -t dev
+
+
+  # ============================================================
+  # 4. Slim CI
+  # ============================================================
+
   slim-ci:
     name: Slim dbt CI
     runs-on: ubuntu-latest
     environment: dev
+
+    needs:
+      - static-validation
+      - unit-tests
+      - bundle-validation
 
     env:
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
@@ -37,7 +222,7 @@ jobs:
       - name: Install Databricks CLI
         uses: databricks/setup-cli@main
         with:
-          version: 1.18.0
+          version: 1.19.0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -51,12 +236,6 @@ jobs:
 
       - name: Install dbt packages
         run: dbt deps
-
-      - name: Validate bundle
-        run: databricks bundle validate -t dev
-
-      - name: Plan bundle
-        run: databricks bundle plan -t dev
 
       - name: Download latest PROD dbt manifest
         shell: bash
@@ -173,28 +352,13 @@ jobs:
       - name: Check dbt connection
         run: dbt debug --target ci
 
-      - name: Prepare unit test parents
-        run: |
-          dbt run \
-            --target ci \
-            --select stg_orders stg_order_items stg_payments \
-            --empty \
-            --vars '{"environment":"dev"}'
-
-      - name: Run dbt unit tests
-        run: |
-          dbt test \
-            --target ci \
-            --select "test_type:unit" \
-            --vars '{"environment":"dev"}'
-
       - name: Show modified dbt nodes
         run: |
           dbt ls \
             --target ci \
             --select "state:modified+" \
             --state prod_state \
-            --vars '{"environment":"dev"}'
+            --vars '{"environment":"dev","enable_observability":false}'
 
       - name: Run Slim CI
         run: |
@@ -204,4 +368,5 @@ jobs:
             --state prod_state \
             --defer \
             --favor-state \
-            --vars '{"environment":"dev"}'
+            --exclude-resource-type unit_test \
+            --vars '{"environment":"dev","enable_observability":false}'
