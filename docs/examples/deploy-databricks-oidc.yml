@@ -1,0 +1,46 @@
+name: Deploy Databricks with OIDC
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: databricks-prod-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Databricks PROD
+    runs-on: ubuntu-latest
+    environment: prod
+
+    env:
+      DATABRICKS_AUTH_TYPE: github-oidc
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+        with:
+          version: 1.19.0
+
+      - name: Verify Databricks identity
+        run: databricks current-user me
+
+      - name: Validate PROD bundle
+        run: databricks bundle validate -t prod
+
+      - name: Plan PROD bundle
+        run: databricks bundle plan -t prod
+
+      - name: Deploy PROD bundle
+        run: databricks bundle deploy -t prod
