@@ -8,14 +8,28 @@ sources:
     tables:
       - name: cdc_batch_control
         description: >
-          Stores the last successfully processed CDC ingestion batch.
+          Stores the last successfully processed CDC ingestion batch
+          per environment and pipeline.
+
+        data_tests:
+          - dbt_utils.unique_combination_of_columns:
+              arguments:
+                combination_of_columns:
+                  - environment
+                  - pipeline_name
 
         columns:
-          - name: pipeline_name
+          - name: environment
+            description: "Execution environment owning the pipeline watermark."
             data_tests:
               - not_null
-              - unique
+
+          - name: pipeline_name
+            description: "Logical pipeline identifier."
+            data_tests:
+              - not_null
 
           - name: last_successful_batch_id
+            description: "Highest ingestion batch successfully processed."
             data_tests:
               - not_null

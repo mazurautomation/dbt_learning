@@ -7,7 +7,7 @@ resources:
 
       parameters:
         - name: cdc_batch_id
-          default: "1"
+          default: "0"
 
       tasks:
 
@@ -23,8 +23,16 @@ resources:
               - "dbt deps"
 
               - >-
-                dbt source freshness
-                --select source:pharmacy_bronze.orders_cdc
+                  dbt run-operation validate_cdc_batch_id
+                  --args '{batch_id: {{job.parameters.cdc_batch_id}}}'
+
+              - >-
+                  dbt run-operation validate_cdc_batch_has_events
+                  --args '{batch_id: {{job.parameters.cdc_batch_id}}}'
+
+              - >-
+                  dbt source freshness
+                  --select source:pharmacy_bronze.orders_cdc
 
             warehouse_id: ${var.warehouse_id}
             catalog: ${var.catalog}

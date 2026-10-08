@@ -69,6 +69,7 @@
                     ) }}
 
                     where pipeline_name = 'pharmacy_cdc'
+                        and environment = '{{ environment }}'
 
                 ),
 
